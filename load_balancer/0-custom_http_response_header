@@ -1,21 +1,35 @@
 #!/usr/bin/env bash
-# Configures Nginx to add a custom HTTP header "X-Served-By"
-# Ignore SC2154 for shellcheck
-# Should run on a fresh Ubuntu server
+# Configure Nginx server with custom X-Served-By header
 
-# Install nginx if not already installed
-apt-get update -y
-apt-get install -y nginx
+sudo apt-get update -y
+sudo apt-get install -y nginx
 
-# Get hostname
-SERVER_NAME=$(hostname)
+# Get the actual hostname
+HOSTNAME=$(hostname)
 
-# Add custom header in Nginx default config
-CONFIG_FILE="/etc/nginx/sites-available/default"
+config=\
+"server {
+        listen 80 default_server;
+        listen [::]:80 default_server;
+        root /var/www/html;
+        index index.html index.htm index.nginx-debian.html;
+        server_name _;
+        
+        location / {
+            add_header X-Served-By $HOSTNAME;
+            try_files \$uri \$uri/ =404;
+        }
+}
+"
 
-# Insert header into the server block
-sed -i "/server_name _;/a add_header X-Served-By \$hostname;" $CONFIG_FILE
+# Create or overwrite the default configuration
+echo "$config" | sudo tee /etc/nginx/sites-available/default > /dev/null
+
+# Test the configuration before restarting
+sudo nginx -t
 
 # Restart Nginx
-systemctl restart nginx
+sudo service nginx restart
 
+# Enable Nginx to start on boot
+sudo systemctl enable nginx
