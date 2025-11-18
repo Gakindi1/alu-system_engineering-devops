@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Install and configure HAproxy load balancer
+# Requirements:
+# - Roundrobin distribution
+# - Backends: web-01 and web-02
+# - Must run on a fresh Ubuntu server
+
+apt-get update -y
+apt-get install -y haproxy
+
+# Enable HAProxy to start via init script
+sed -i "s/ENABLED=0/ENABLED=1/" /etc/default/haproxy
+
+# Get your student ID prefix from hostname (optional)
+# Example hostname: 1234-web-01 → ID=1234
+STUDENT_ID=$(hostname | cut -d'-' -f1)
+
+# Replace these with your actual server private/public IPs
+WEB01_IP="IP_OF_WEB_01"
+WEB02_IP="IP_OF_WEB_02"
+
+# Create backup before editing config
+cp /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.bak
+
+# Write HAProxy config
+cat <<EOF >/etc/haproxy/haproxy.cfg
+global
+    log /dev/log    local0
+    log /dev/log    local1 notice
+    daemon
+
+defaults
+    log     global
+    mode    http
+    option  httplog
+    option  dontlognull
+    retries 3
+    timeout connect 5s
+    timeout client 50s
+    timeout server 50s
+
+frontend http_front
+    bind *:80
+    default_backend http_back
+
+backend http_back
+    balance roundrobin
+    server ${STUDENT_ID}-web-01 ${WEB01_IP}:80 check
+    server ${STUDENT_ID}-web-02 ${WEB02_IP}:80 check
+EOF
+
+# Restart HAProxy
+systemctl restart haproxy
+
